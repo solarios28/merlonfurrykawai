@@ -1,1 +1,239 @@
 
+--[[
+    Auto-Click Script v2.3
+    Created: 2025-03-08 20:17:22 UTC
+    Author: Solaris
+    Fixed by: Solarios 28
+]]
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+-- Variables principales
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+local AutoClickEnabled = false
+local LastClickTime = 0
+local ClickCooldown = 0.00000001
+local ScriptActive = true
+
+-- Almacenar conexiones para desconectarlas después
+local Connections = {}
+
+-- Implementar OnServerEvent para manejar eventos remotos silenciosamente
+local function handleRemoteEvent()
+    return -- Simplemente retorna sin hacer nada
+end
+
+-- Sobrescribir la función de registro de eventos remotos
+if game.LogService then
+    local originalFunction = game.LogService.MessageOut
+    game.LogService.MessageOut:Connect(function(message, messageType)
+        if not message:match("Remote event") and not message:match("OnServerEvent") then
+            originalFunction:Fire(message, messageType)
+        end
+    end)
+end
+
+-- Función para conectar eventos y guardar referencias
+local function ConnectEvent(event, callback)
+    local connection = event:Connect(callback)
+    table.insert(Connections, connection)
+    return connection
+end
+
+-- Crear GUI
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = math.random(1000000, 9999999) -- Nombre aleatorio para evitar detección
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = game.CoreGui
+
+-- Marco principal
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = tostring(math.random(1000000, 9999999)) -- Nombre aleatorio
+MainFrame.Size = UDim2.new(0, 150, 0, 60)
+MainFrame.Position = UDim2.new(0.85, 0, 0.1, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.BackgroundTransparency = 0.2
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+-- Título
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Name = tostring(math.random(1000000, 9999999)) -- Nombre aleatorio
+TitleLabel.Size = UDim2.new(1, 0, 0, 25)
+TitleLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+TitleLabel.BackgroundTransparency = 0.2
+TitleLabel.BorderSizePixel = 0
+TitleLabel.Text = "Auto-Click v2.3"
+TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleLabel.TextSize = 14
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.Parent = MainFrame
+
+-- Botón de Toggle
+local ToggleButton = Instance.new("TextButton")
+ToggleButton.Name = tostring(math.random(1000000, 9999999)) -- Nombre aleatorio
+ToggleButton.Size = UDim2.new(0.8, 0, 0, 25)
+ToggleButton.Position = UDim2.new(0.1, 0, 0.5, 0)
+ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+ToggleButton.BorderSizePixel = 0
+ToggleButton.Text = "OFF"
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.TextSize = 14
+ToggleButton.Font = Enum.Font.GothamBold
+ToggleButton.Parent = MainFrame
+
+-- Función para destruir el script completamente
+local function destroyScript()
+    ScriptActive = false
+    AutoClickEnabled = false
+    
+    -- Desconectar todos los eventos guardados
+    for _, connection in ipairs(Connections) do
+        if connection and typeof(connection) == "RBXScriptConnection" then
+            connection:Disconnect()
+        end
+    end
+    
+    -- Destruir la GUI silenciosamente
+    pcall(function()
+        if ScreenGui then
+            ScreenGui:Destroy()
+        end
+    end)
+    
+    -- Notificación final sin mensajes de consola
+    pcall(function()
+        game.StarterGui:SetCore("SendNotification", {
+            Title = "Auto-Click v2.3",
+            Text = "Script destruido completamente\nShift + X para reinstalar",
+            Duration = 3
+        })
+    end)
+end
+
+-- Función mejorada para verificar si el mouse está sobre un jugador
+local function isMouseOverPlayer()
+    if not ScriptActive then return false end
+    local target = Mouse.Target
+    if target then
+        local character = target:FindFirstAncestorWhichIsA("Model")
+        if character then
+            local humanoid = character:FindFirstChild("Humanoid")
+            if humanoid then
+                local player = Players:GetPlayerFromCharacter(character)
+                return player ~= nil and player ~= LocalPlayer
+            end
+        end
+    end
+    return false
+end
+
+-- Función para simular click con cooldown y manejo silencioso de errores
+local function simulateClick()
+    if not ScriptActive then return end
+    local currentTime = tick()
+    if currentTime - LastClickTime >= ClickCooldown then
+        pcall(function()
+            mouse1press()
+            mouse1release()
+        end)
+        LastClickTime = currentTime
+        
+        -- Debug visual silencioso
+        pcall(function()
+            local debugDot = Instance.new("Frame")
+            debugDot.Size = UDim2.new(0, 4, 0, 4)
+            debugDot.Position = UDim2.new(0, Mouse.X - 2, 0, Mouse.Y - 2)
+            debugDot.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+            debugDot.BorderSizePixel = 0
+            debugDot.Parent = ScreenGui
+            game:GetService("Debris"):AddItem(debugDot, 0.1)
+        end)
+    end
+end
+
+-- Toggle del Auto-Click con manejo silencioso de errores
+ConnectEvent(ToggleButton.MouseButton1Click, function()
+    if not ScriptActive then return end
+    AutoClickEnabled = not AutoClickEnabled
+    pcall(function()
+        ToggleButton.BackgroundColor3 = AutoClickEnabled and Color3.fromRGB(50, 255, 50) or Color3.fromRGB(255, 50, 50)
+        ToggleButton.Text = AutoClickEnabled and "ON" or "OFF"
+        
+        game.StarterGui:SetCore("SendNotification", {
+            Title = "Auto-Click v2.3",
+            Text = AutoClickEnabled and "Activado ⚡" or "Desactivado ✖",
+            Duration = 2
+        })
+    end)
+end)
+
+-- Loop principal del Auto-Click con manejo silencioso
+ConnectEvent(RunService.RenderStepped, function()
+    if not ScriptActive then return end
+    if AutoClickEnabled then
+        pcall(function()
+            local isOverPlayer = isMouseOverPlayer()
+            if isOverPlayer then
+                simulateClick()
+            end
+        end)
+    end
+end)
+
+-- Teclas de control con manejo silencioso
+ConnectEvent(UserInputService.InputBegan, function(input, gameProcessed)
+    if not gameProcessed then
+        pcall(function()
+            if input.KeyCode == Enum.KeyCode.RightAlt and ScriptActive then
+                AutoClickEnabled = not AutoClickEnabled
+                ToggleButton.BackgroundColor3 = AutoClickEnabled and Color3.fromRGB(50, 255, 50) or Color3.fromRGB(255, 50, 50)
+                ToggleButton.Text = AutoClickEnabled and "ON" or "OFF"
+                
+                game.StarterGui:SetCore("SendNotification", {
+                    Title = "Auto-Click v2.3",
+                    Text = AutoClickEnabled and "Activado ⚡" or "Desactivado ✖",
+                    Duration = 2
+                })
+            elseif input.KeyCode == Enum.KeyCode.X and UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+                destroyScript()
+            end
+        end)
+    end
+end)
+
+-- Notificación inicial silenciosa
+pcall(function()
+    game.StarterGui:SetCore("SendNotification", {
+        Title = "Auto-Click v2.3 | " .. LocalPlayer.Name,
+        Text = "⚡ Right-Alt: Toggle\n❌ Shift + X: Destruir Script",
+        Duration = 5
+    })
+end)
+
+-- Manejar respawn del jugador silenciosamente
+ConnectEvent(LocalPlayer.CharacterAdded, function()
+    pcall(function()
+        if ScriptActive and AutoClickEnabled then
+            game.StarterGui:SetCore("SendNotification", {
+                Title = "Auto-Click v2.3",
+                Text = "Sistema restaurado después del respawn ✔",
+                Duration = 2
+            })
+        end
+    end)
+end)
+
+-- Implementar manejador de eventos remotos silencioso
+if game:GetService("ReplicatedStorage") then
+    for _, v in pairs(game:GetService("ReplicatedStorage"):GetDescendants()) do
+        if v:IsA("RemoteEvent") then
+            v.OnClientEvent:Connect(handleRemoteEvent)
+        end
+    end
+end
